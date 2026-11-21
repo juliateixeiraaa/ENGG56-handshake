@@ -1,0 +1,61 @@
+# =============================================================================
+# Makefile.physical — implementação física com OpenROAD-flow-scripts (ORFS)
+#   make -f Makefile.physical                       (ajuda)
+#   make -f Makefile.physical finish                (Nangate45)
+#   make -f Makefile.physical finish PLATFORM=sky130hd
+# =============================================================================
+SHELL    := /bin/bash
+ORFS_DIR ?= $(HOME)/OpenROAD-flow-scripts
+FLOW_DIR := $(ORFS_DIR)/flow
+PLATFORM ?= nangate45
+NICK     := handshake
+WORK     := SinteseFisica
+STAGE    ?= final
+PLATFORMS := nangate45 sky130hd
+
+ENV  := $(if $(wildcard $(ORFS_DIR)/env.sh),source $(ORFS_DIR)/env.sh >/dev/null;)
+ORFS  = $(ENV) $(MAKE) -C $(FLOW_DIR) DESIGN_CONFIG=$(CURDIR)/config.mk \
+        WORK_HOME=$(CURDIR)/$(WORK) PLATFORM=$(PLATFORM)
+
+REP_DIR = $(WORK)/reports/$(PLATFORM)/$(NICK)/base
+LOG_DIR = $(WORK)/logs/$(PLATFORM)/$(NICK)/base
+RES_DIR = $(WORK)/results/$(PLATFORM)/$(NICK)/base
+
+.PHONY: help synth floorplan place cts grt route finish all both gui reports compare clean
+
+help:
+	@echo "Uso: make -f Makefile.physical <alvo> [PLATFORM=nangate45|sky130hd]"
+	@echo "  synth floorplan place cts grt route finish   etapas do fluxo ORFS"
+	@echo "  all       fluxo completo (= finish)"
+	@echo "  both      fluxo completo nas duas plataformas ($(PLATFORMS))"
+	@echo "  gui       abre o OpenROAD GUI (STAGE=floorplan|place|cts|grt|route|final)"
+	@echo "  reports   mostra área, utilização, WNS/TNS e lista os relatórios"
+	@echo "  compare   gera docs/comparacao_plataformas.md com as duas plataformas"
+	@echo "  clean     apaga os resultados da PLATFORM atual"
+	@echo "Layout final: $(RES_DIR)/6_final.gds"
+
+synth floorplan place cts grt route finish:
+	$(ORFS) $@
+
+all: finish
+
+both:
+	@for p in $(PLATFORMS); do $(MAKE) -f Makefile.physical finish PLATFORM=$$p || exit 1; done
+
+gui:
+	$(ORFS) gui_$(STAGE)
+
+reports:
+	@echo "== Relatórios em $(REP_DIR)"; ls -1 $(REP_DIR) 2>/dev/null || echo "(nenhum ainda)"
+	@if [ -f $(REP_DIR)/6_finish.rpt ]; then \
+	  echo; echo "== Resumo (6_finish.rpt)"; \
+	  grep -iE "design area|^tns|^wns|worst slack|total negative|utilization" $(REP_DIR)/6_finish.rpt; fi
+	@echo; echo "== Logs em $(LOG_DIR)"; ls -1 $(LOG_DIR) 2>/dev/null || true
+
+compare:
+	python3 scripts/compare_platforms.py $(WORK) $(NICK) $(PLATFORMS) > docs/comparacao_plataformas.md
+	@cat docs/comparacao_plataformas.md
+
+clean:
+	rm -rf $(WORK)/results/$(PLATFORM) $(WORK)/logs/$(PLATFORM) \
+	       $(WORK)/reports/$(PLATFORM) $(WORK)/objects/$(PLATFORM)

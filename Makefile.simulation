@@ -1,0 +1,45 @@
+# =============================================================================
+# Makefile.simulation — Icarus Verilog + GTKWave
+#   make -f Makefile.simulation            (ajuda)
+# =============================================================================
+SIM_DIR := Simulacao
+RTL     := SystemVerilog/cdc_sync.sv \
+           SystemVerilog/reset_sync.sv \
+           SystemVerilog/sender.sv \
+           SystemVerilog/receiver.sv \
+           SystemVerilog/handshake_top.sv
+TB      := SystemVerilog/tb_handshake_top.sv
+TB_TOP  := tb_handshake_top
+VVP     := $(SIM_DIR)/$(TB_TOP).vvp
+VCD     := $(SIM_DIR)/$(TB_TOP).vcd
+GTKW    := scripts/ondas.gtkw
+
+.PHONY: help compile sim wave run clean
+
+help:
+	@echo "Uso: make -f Makefile.simulation <alvo>"
+	@echo "  compile  compila RTL + testbench (iverilog -g2012)"
+	@echo "  sim      executa a simulação (log em $(SIM_DIR)/sim.log, ondas em $(VCD))"
+	@echo "  wave     abre o GTKWave com os sinais principais já organizados"
+	@echo "  run      sim + wave"
+	@echo "  clean    apaga os arquivos gerados em $(SIM_DIR)/"
+
+compile: $(VVP)
+
+$(VVP): $(RTL) $(TB) | $(SIM_DIR)
+	iverilog -g2012 -Wall -s $(TB_TOP) -o $@ $(RTL) $(TB)
+
+$(SIM_DIR):
+	mkdir -p $@
+
+sim: $(VVP)
+	cd $(SIM_DIR) && vvp -n $(TB_TOP).vvp | tee sim.log
+	@grep -q "TODOS OS TESTES PASSARAM" $(SIM_DIR)/sim.log
+
+wave:
+	gtkwave $(VCD) $(GTKW) &
+
+run: sim wave
+
+clean:
+	rm -f $(SIM_DIR)/*.vvp $(SIM_DIR)/*.vcd $(SIM_DIR)/*.log

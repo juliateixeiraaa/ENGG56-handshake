@@ -1,0 +1,45 @@
+[*] Arquivo de configuração do GTKWave — sinais principais do projeto
+[*] Uso: gtkwave Simulacao/tb_handshake_top.vcd scripts/ondas.gtkw
+@200
+-Clocks e reset
+@28
+tb_handshake_top.CLK_A
+tb_handshake_top.CLK_B
+tb_handshake_top.RESET_N
+tb_handshake_top.dut.reset_sender_n
+tb_handshake_top.dut.reset_receiver_n
+@200
+-Entrada (CLK_A)
+@28
+tb_handshake_top.IN_VALID
+tb_handshake_top.IN_READY
+@22
+tb_handshake_top.DATA_IN[15:0]
+@24
+tb_handshake_top.dut.u_sender.wr_cnt[3:0]
+tb_handshake_top.dut.u_sender.state[2:0]
+@200
+-Handshake REQ/ACK
+@28
+tb_handshake_top.dut.req
+tb_handshake_top.dut.u_receiver.req_s
+tb_handshake_top.dut.ack
+tb_handshake_top.dut.u_sender.ack_s
+@22
+tb_handshake_top.dut.tx_data[15:0]
+@24
+tb_handshake_top.dut.u_sender.tx_cnt[3:0]
+tb_handshake_top.dut.u_receiver.rx_cnt[3:0]
+tb_handshake_top.dut.u_receiver.state[1:0]
+@200
+-Saida (CLK_B)
+@28
+tb_handshake_top.RX_DONE
+tb_handshake_top.OUT_VALID
+tb_handshake_top.OUT_READY
+@22
+tb_handshake_top.DATA_OUT[15:0]
+@24
+tb_handshake_top.dut.u_receiver.rd_cnt[3:0]
+@28
+tb_handshake_top.OUT_DONE

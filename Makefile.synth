@@ -1,0 +1,74 @@
+# =============================================================================
+# Makefile.synth — Yosys (síntese lógica e mapeamento tecnológico)
+#   make -f Makefile.synth                       (ajuda)
+#   Variáveis: PLATFORM=nangate45|sky130hd  MOD=<módulo a visualizar>
+#              ORFS_DIR=<caminho do OpenROAD-flow-scripts>
+# =============================================================================
+SHELL    := /bin/bash
+ORFS_DIR ?= $(HOME)/OpenROAD-flow-scripts
+FLOW_DIR := $(ORFS_DIR)/flow
+PLATFORM ?= nangate45
+TOP      := handshake_top
+MOD      ?= $(TOP)
+OUT      := SinteseLogica
+NICK     := handshake
+
+RTL := SystemVerilog/cdc_sync.sv \
+       SystemVerilog/reset_sync.sv \
+       SystemVerilog/sender.sv \
+       SystemVerilog/receiver.sv \
+       SystemVerilog/handshake_top.sv
+
+LIB_nangate45 := $(FLOW_DIR)/platforms/nangate45/lib/NangateOpenCellLibrary_typical.lib
+LIB_sky130hd  := $(FLOW_DIR)/platforms/sky130hd/lib/sky130_fd_sc_hd__tt_025C_1v80.lib
+LIB           := $(LIB_$(PLATFORM))
+
+ENV := $(if $(wildcard $(ORFS_DIR)/env.sh),source $(ORFS_DIR)/env.sh >/dev/null;)
+ORFS_NETLIST = $(firstword $(wildcard SinteseFisica/results/$(PLATFORM)/$(NICK)/base/1_synth.v \
+                                      SinteseFisica/results/$(PLATFORM)/$(NICK)/base/1_2_yosys.v))
+
+.PHONY: help view_rtl view_mapped stat synth view_orfs clean
+
+help:
+	@echo "Uso: make -f Makefile.synth <alvo> [PLATFORM=nangate45|sky130hd] [MOD=modulo]"
+	@echo "  view_rtl     RTL otimizado (genérico) do módulo MOD (padrão: $(TOP))"
+	@echo "  view_mapped  síntese independente mapeada na biblioteca de PLATFORM"
+	@echo "  stat         relatório de células/área -> $(OUT)/yosys_stat_<plat>.txt"
+	@echo "  synth        síntese lógica pelo ORFS (resultados em $(OUT)/)"
+	@echo "  view_orfs    abre a netlist gerada pelo fluxo físico (Makefile.physical synth)"
+	@echo "  clean        apaga $(OUT)/"
+	@echo "Dica: para visualizar, use módulos pequenos: MOD=cdc_sync, MOD=reset_sync"
+
+$(OUT):
+	mkdir -p $@
+
+view_rtl:
+	yosys -p "read_verilog -sv $(RTL); hierarchy -check -top $(TOP); proc; opt; show $(MOD)"
+
+view_mapped:
+	yosys -p "read_verilog -sv $(RTL); synth -top $(TOP); dfflibmap -liberty $(LIB); \
+	          abc -liberty $(LIB); opt_clean; show $(MOD)"
+
+# Relatório da síntese independente: hierárquico (por módulo) e achatado
+stat: | $(OUT)
+	yosys -l $(OUT)/yosys_$(PLATFORM).log -p "read_verilog -sv $(RTL); \
+	      synth -top $(TOP); dfflibmap -liberty $(LIB); abc -liberty $(LIB); opt_clean; \
+	      tee -o $(OUT)/yosys_stat_$(PLATFORM)_hier.txt stat -liberty $(LIB); \
+	      flatten; opt_clean; \
+	      tee -o $(OUT)/yosys_stat_$(PLATFORM).txt stat -liberty $(LIB); \
+	      write_verilog -noattr $(OUT)/$(TOP)_$(PLATFORM)_mapped.v"
+	@echo "Relatórios em $(OUT)/yosys_stat_$(PLATFORM)*.txt"
+
+synth: | $(OUT)
+	$(ENV) $(MAKE) -C $(FLOW_DIR) DESIGN_CONFIG=$(CURDIR)/config.mk \
+	        WORK_HOME=$(CURDIR)/$(OUT) PLATFORM=$(PLATFORM) synth
+
+view_orfs:
+	@if [ -z "$(ORFS_NETLIST)" ]; then \
+	  echo "Netlist do ORFS não encontrada. Rode antes: make -f Makefile.physical synth PLATFORM=$(PLATFORM)"; exit 1; fi
+	yosys -p "read_liberty -lib $(LIB); read_verilog $(ORFS_NETLIST); hierarchy -top $(TOP); \
+	          tee -o $(OUT)/orfs_stat_$(PLATFORM).txt stat -liberty $(LIB); show $(TOP)"
+
+clean:
+	rm -rf $(OUT)/*
+	touch $(OUT)/.gitkeep

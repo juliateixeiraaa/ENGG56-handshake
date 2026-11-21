@@ -1,0 +1,16 @@
+# Saídas de simulação
+Simulacao/*.vvp
+Simulacao/*.vcd
+Simulacao/*.fst
+
+# Saídas intermediárias pesadas do ORFS (mantenha reports/, logs/ e o GDS final)
+SinteseFisica/objects/
+SinteseLogica/objects/
+SinteseFisica/results/**/*.odb
+SinteseLogica/results/**/*.odb
+
+# Diversos
+*.swp
+*~
+.DS_Store
+__pycache__/
