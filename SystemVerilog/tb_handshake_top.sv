@@ -7,6 +7,8 @@
 //   T3  Reset assíncrono no meio do handshake
 //   T4  Esperas aleatórias: IN_VALID inativo e OUT_READY inativo
 //   T5  Clocks invertidos (CLK_A lento, CLK_B rápido) com esperas
+//   T6  Clocks quase iguais (10,0 / 10,1 ns): a fase relativa escorrega
+//       0,1 ns por ciclo e passa por bordas praticamente coincidentes
 //
 // Verificações automáticas (monitores sempre ligados):
 //   - ordem e conteúdo das 16 palavras em DATA_OUT
@@ -32,6 +34,10 @@ module tb_handshake_top;
     //   T2      : 4,0 / 5,7 ns   (mesmo par do SDC Nangate45, 40:57)
     //   T4      : 10,0 / 14,3 ns (mesmo par do SDC Sky130HD, 100:143)
     //   T5      : 23,3 / 7,0 ns  (razão ~3,3 invertida, 233:70)
+    //   T6      : 10,0 / 10,1 ns (quase iguais, 100:101)
+    // Na simulação RTL não há atrasos: só a razão e a fase entre os clocks
+    // importam. Os valores absolutos de T2/T4 coincidem com o SDC apenas
+    // por rastreabilidade.
     real half_a = 2.0;     // CLK_A = 4.0 ns
     real half_b = 2.85;    // CLK_B = 5.7 ns (não múltiplo de CLK_A)
 
@@ -324,6 +330,22 @@ module tb_handshake_top;
         fork
             drive_inputs(3);
             consume_outputs(50);
+        join
+        check_counts();
+
+        // ---------------- T6 ----------------
+        // Caso clássico de CDC: com períodos quase iguais, a fase relativa
+        // escorrega 0,1 ns por ciclo, e ao longo da transferência as bordas
+        // de CLK_A e CLK_B passam por todos os alinhamentos, inclusive o
+        // quase coincidente.
+        new_test("T6 clocks quase iguais (CLK_A = 10,0 ns, CLK_B = 10,1 ns)");
+        half_a = 5.0;    // CLK_A = 10.0 ns
+        half_b = 5.05;   // CLK_B = 10.1 ns
+        gen_words(2);
+        apply_reset(27.0);
+        fork
+            drive_inputs(0);
+            consume_outputs(100);
         join
         check_counts();
 
