@@ -22,13 +22,29 @@ module reset_sync #(
 
     logic [STAGES-1:0] rst_ff;
 
-    always_ff @(posedge clk or negedge rst_n_async) begin
-        if (!rst_n_async)
-            rst_ff <= '0;
-        else
-            rst_ff <= {rst_ff[STAGES-2:0], 1'b1};
-    end
+    // Com menos de 2 estágios a liberação do reset não é sincronizada (e o
+    // part-select rst_ff[STAGES-2:0] fica inválido). A lógica só é elaborada
+    // no "else", então STAGES < 2 para a elaboração com esta mensagem.
+    generate
+        if (STAGES < 2) begin : g_stages_invalidos
+            // $error: o Yosys para a elaboração aqui. O Icarus 12 ignora
+            // $error de elaboração, então o $fatal (só em simulação, fora de
+            // SYNTHESIS) para a simulação no tempo 0. Este ramo só existe
+            // com STAGES inválido: nada aqui vai para a netlist.
+            $error("reset_sync: o parametro STAGES deve ser >= 2");
+`ifndef SYNTHESIS
+            initial $fatal(1, "reset_sync: o parametro STAGES deve ser >= 2 (recebido %0d)", STAGES);
+`endif
+        end else begin : g_sync
+            always_ff @(posedge clk or negedge rst_n_async) begin
+                if (!rst_n_async)
+                    rst_ff <= '0;
+                else
+                    rst_ff <= {rst_ff[STAGES-2:0], 1'b1};
+            end
 
-    assign rst_n_sync = rst_ff[STAGES-1];
+            assign rst_n_sync = rst_ff[STAGES-1];
+        end
+    endgenerate
 
 endmodule
