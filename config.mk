@@ -25,7 +25,9 @@ export IO_CONSTRAINTS = $(PROJ_DIR)/io_constraints.tcl
 
 # -----------------------------------------------------------------------------
 # Períodos de clock (ns) por plataforma — lidos pelo handshake.sdc
-# CLK_A e CLK_B têm períodos diferentes e sem relação racional simples.
+# CLK_A e CLK_B têm períodos diferentes, nenhum múltiplo do outro, com
+# mdc = 0,1 ns (40:57 e 100:143): a fase relativa varre 40/100 valores
+# distintos antes de se repetir. Os mesmos pares são usados no testbench (T2, T4).
 # -----------------------------------------------------------------------------
 ifeq ($(PLATFORM),nangate45)
   export CLK_A_PERIOD     ?= 4.0

@@ -26,8 +26,14 @@ module tb_handshake_top;
     // ------------------------------------------------------------------
     // Clocks independentes (períodos ajustáveis durante a simulação)
     // ------------------------------------------------------------------
-    real half_a = 5.0;     // CLK_A = 10.0 ns
-    real half_b = 8.65;    // CLK_B = 17.3 ns (não múltiplo de CLK_A)
+    // Períodos (ver config.mk / handshake.sdc). Pares escolhidos com
+    // mdc(T_A, T_B) = 0,1 ns: a fase relativa entre as bordas varre muitos
+    // valores distintos em vez de repetir poucos alinhamentos.
+    //   T2      : 4,0 / 5,7 ns   (mesmo par do SDC Nangate45, 40:57)
+    //   T4      : 10,0 / 14,3 ns (mesmo par do SDC Sky130HD, 100:143)
+    //   T5      : 23,3 / 7,0 ns  (razão ~3,3 invertida, 233:70)
+    real half_a = 2.0;     // CLK_A = 4.0 ns
+    real half_b = 2.85;    // CLK_B = 5.7 ns (não múltiplo de CLK_A)
 
     logic CLK_A = 1'b0;
     logic CLK_B = 1'b0;
@@ -299,6 +305,8 @@ module tb_handshake_top;
 
         // ---------------- T4 ----------------
         new_test("T4 esperas aleatorias (IN_VALID e OUT_READY inativos)");
+        half_a = 5.0;    // CLK_A = 10.0 ns
+        half_b = 7.15;   // CLK_B = 14.3 ns
         gen_words(2);
         apply_reset(31.0);
         fork
@@ -309,7 +317,7 @@ module tb_handshake_top;
 
         // ---------------- T5 ----------------
         new_test("T5 clocks invertidos (CLK_A lento, CLK_B rapido)");
-        half_a = 11.55;  // CLK_A = 23.1 ns
+        half_a = 11.65;  // CLK_A = 23.3 ns
         half_b = 3.5;    // CLK_B =  7.0 ns
         gen_words(2);
         apply_reset(29.0);

@@ -79,6 +79,30 @@ flowchart LR
     ORDY[/OUT_READY/] --> R
 ```
 
+### Sinais internos
+
+| Sinal | Origem → destino | Domínio | Largura | Observação |
+|---|---|---|---|---|
+| `reset_sender_n` | `u_rst_sync_a` → todos os FFs do Sender | A | 1 | `reset_sender` do enunciado; ativo baixo, assertion assíncrona e deassertion síncrona |
+| `reset_receiver_n` | `u_rst_sync_b` → todos os FFs do Receiver | B | 1 | `reset_receiver` do enunciado; idem |
+| `req` | FF do Sender → `cdc_sync` do Receiver | A → B | 1 | sai direto de flip-flop |
+| `ack` | FF do Receiver → `cdc_sync` do Sender | B → A | 1 | sai direto de flip-flop |
+| `tx_data` | FFs do Sender → `mem` do Receiver | A → B | `WIDTH` | bundled-data, **sem** sincronizador; só muda com `req = ack = 0` |
+| `req_s` | saída do `cdc_sync` | B | 1 | `req` sincronizado (2 FFs) |
+| `ack_s` | saída do `cdc_sync` | A | 1 | `ack` sincronizado (2 FFs) |
+| `wr_cnt` / `tx_cnt` | Sender | A | `$clog2(DEPTH)` | palavras capturadas / palavra em transferência |
+| `rx_cnt` / `rd_cnt` | Receiver | B | `$clog2(DEPTH)` | palavra recebida / palavra entregue na saída |
+| `mem` (Sender e Receiver) | — | A / B | `DEPTH × WIDTH` | flip-flops sem reset (só lidos depois de escritos) |
+
+### Parâmetros
+
+| Parâmetro | Valor | Onde | Observação |
+|---|---|---|---|
+| `WIDTH` | 16 | RTL | largura da palavra |
+| `DEPTH` | 16 | RTL | palavras por bloco |
+| `SYNC_STAGES` | 2 | RTL | FFs dos sincronizadores de controle e de reset; **mínimo 2** |
+| `CLK_A_PERIOD` / `CLK_B_PERIOD` | 4,0 / 5,7 ns (Nangate45); 10,0 / 14,3 ns (Sky130HD) | `config.mk` → `handshake.sdc` | mesmos pares nos cenários T2 e T4 do testbench |
+
 ### FSM do Sender (CLK_A)
 
 ```mermaid
@@ -165,10 +189,10 @@ Os períodos de clock de cada plataforma ficam em `config.mk` (`CLK_A_PERIOD`, `
 | Cenário | O que testa |
 |---------|-------------|
 | T1 | valores durante o reset; liberação de `reset_sender_n`/`reset_receiver_n` na borda do próprio clock |
-| T2 | fluxo sem esperas (CLK_A = 10 ns, CLK_B = 17,3 ns); `IN_VALID` mantido depois da 16ª palavra é ignorado |
+| T2 | fluxo sem esperas (CLK_A = 4,0 ns, CLK_B = 5,7 ns — par do SDC Nangate45); `IN_VALID` mantido depois da 16ª palavra é ignorado |
 | T3 | `RESET_N` ativado no meio do 5º handshake, fora das bordas de clock |
-| T4 | `IN_VALID` e `OUT_READY` inativos aleatoriamente (esperas nas duas interfaces) |
-| T5 | clocks invertidos (CLK_A = 23,1 ns lento, CLK_B = 7 ns rápido) |
+| T4 | `IN_VALID` e `OUT_READY` inativos aleatoriamente (esperas nas duas interfaces); CLK_A = 10,0 ns, CLK_B = 14,3 ns (par do SDC Sky130HD) |
+| T5 | clocks invertidos (CLK_A = 23,3 ns lento, CLK_B = 7,0 ns rápido) |
 
 Monitores sempre ativos checam: ordem/conteúdo das palavras, estabilidade de `DATA_OUT`/`OUT_VALID` com `OUT_READY = 0`, `OUT_VALID` só após `RX_DONE`, `RX_DONE` permanente, `OUT_DONE` só após a 16ª palavra, ordem das 4 fases REQ/ACK e estabilidade de `tx_data` durante o handshake.
 
