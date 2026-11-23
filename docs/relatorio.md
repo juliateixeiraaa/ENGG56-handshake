@@ -43,6 +43,24 @@ _Inserir os diagramas e explicar cada transição._
 ### 3.1 Ambiente
 _Icarus Verilog (`-g2012`) + GTKWave. Clocks com períodos distintos e fases iniciais diferentes._
 
+Os períodos de cada cenário foram escolhidos com mdc(T_A, T_B) = 0,1 ns, para
+que a fase relativa entre as bordas de CLK_A e CLK_B passe por muitos valores
+distintos antes de se repetir. Em simulação RTL não há atrasos, então só a
+razão e a fase entre os clocks importam. Os pares de T2 e T4 coincidem com os do
+SDC (Nangate45 e Sky130HD) por rastreabilidade, não por exigência de temporização.
+
+| Cenário | CLK_A (ns) | CLK_B (ns) | Razão | Fases distintas | Repete a cada |
+|---|---|---|---|---|---|
+| T1, T2, T3 | 4,0 | 5,7 | 40:57 | 40 | 228 ns |
+| T4 | 10,0 | 14,3 | 100:143 | 100 | 1430 ns |
+| T5 | 23,3 | 7,0 | 233:70 | 70 | 1631 ns |
+| T6 | 10,0 | 10,1 | 100:101 | 100 | 1010 ns |
+
+Fases iniciais: os clocks começam com atrasos diferentes (`#1.3` para CLK_A e
+`#3.7` para CLK_B no testbench). Com os períodos de T1, a primeira borda de
+subida de CLK_A ocorre em 3,3 ns e a de CLK_B em 6,55 ns. Nas trocas de período
+entre cenários, os clocks continuam rodando, então a fase não é reiniciada.
+
 ### 3.2 Cenários
 
 | Cenário | Descrição | Resultado |
@@ -52,6 +70,7 @@ _Icarus Verilog (`-g2012`) + GTKWave. Clocks com períodos distintos e fases ini
 | T3 | Reset assíncrono durante o handshake | **TODO** |
 | T4 | Esperas aleatórias em IN_VALID e OUT_READY | **TODO** |
 | T5 | Clocks invertidos (A lento, B rápido) | **TODO** |
+| T6 | Clocks quase iguais (10,0 / 10,1 ns) | **TODO** |
 
 ### 3.3 Formas de onda
 _Prints com legenda: (a) captura na entrada, (b) um ciclo completo REQ/ACK

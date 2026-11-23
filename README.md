@@ -22,7 +22,7 @@ A organização segue o projeto `ENGG56/Exemplo/` da máquina virtual:
 │   ├── sender.sv             bloco Sender (CLK_A)
 │   ├── receiver.sv           bloco Receiver (CLK_B)
 │   ├── handshake_top.sv      módulo de topo
-│   └── tb_handshake_top.sv   testbench (5 cenários + verificações automáticas)
+│   └── tb_handshake_top.sv   testbench (6 cenários + verificações automáticas)
 ├── Simulacao/                saídas da simulação (.vcd, sim.log)
 ├── SinteseLogica/            saídas do Yosys
 ├── SinteseFisica/            saídas do OpenROAD (results/, reports/, logs/)
@@ -55,8 +55,6 @@ A organização segue o projeto `ENGG56/Exemplo/` da máquina virtual:
 | `DATA_OUT[15:0]` | out     | B       | dado de saída |
 | `OUT_VALID`      | out     | B       | `DATA_OUT` válido |
 | `OUT_DONE`       | out     | B       | 16ª palavra aceita na saída |
-
-Parâmetros: `WIDTH = 16`, `DEPTH = 16`, `SYNC_STAGES = 2`.
 
 ## Arquitetura
 
@@ -100,7 +98,7 @@ flowchart LR
 |---|---|---|---|
 | `WIDTH` | 16 | RTL | largura da palavra |
 | `DEPTH` | 16 | RTL | palavras por bloco |
-| `SYNC_STAGES` | 2 | RTL | FFs dos sincronizadores de controle e de reset; **mínimo 2** |
+| `SYNC_STAGES` | 2 | RTL | FFs dos sincronizadores de controle e de reset; **mínimo 2** (valores menores param a elaboração com erro em `cdc_sync`/`reset_sync`) |
 | `CLK_A_PERIOD` / `CLK_B_PERIOD` | 4,0 / 5,7 ns (Nangate45); 10,0 / 14,3 ns (Sky130HD) | `config.mk` → `handshake.sdc` | mesmos pares nos cenários T2 e T4 do testbench |
 
 ### FSM do Sender (CLK_A)
@@ -193,6 +191,7 @@ Os períodos de clock de cada plataforma ficam em `config.mk` (`CLK_A_PERIOD`, `
 | T3 | `RESET_N` ativado no meio do 5º handshake, fora das bordas de clock |
 | T4 | `IN_VALID` e `OUT_READY` inativos aleatoriamente (esperas nas duas interfaces); CLK_A = 10,0 ns, CLK_B = 14,3 ns (par do SDC Sky130HD) |
 | T5 | clocks invertidos (CLK_A = 23,3 ns lento, CLK_B = 7,0 ns rápido) |
+| T6 | clocks quase iguais (CLK_A = 10,0 ns, CLK_B = 10,1 ns): a fase relativa escorrega 0,1 ns por ciclo e passa por bordas praticamente coincidentes |
 
 Monitores sempre ativos checam: ordem/conteúdo das palavras, estabilidade de `DATA_OUT`/`OUT_VALID` com `OUT_READY = 0`, `OUT_VALID` só após `RX_DONE`, `RX_DONE` permanente, `OUT_DONE` só após a 16ª palavra, ordem das 4 fases REQ/ACK e estabilidade de `tx_data` durante o handshake.
 
