@@ -23,13 +23,30 @@ module cdc_sync #(
 
     logic [STAGES-1:0] sync_ff;
 
-    always_ff @(posedge clk or negedge rst_n) begin
-        if (!rst_n)
-            sync_ff <= '0;
-        else
-            sync_ff <= {sync_ff[STAGES-2:0], d};
-    end
+    // Com menos de 2 estágios não há sincronização (e o part-select
+    // sync_ff[STAGES-2:0] fica inválido). A lógica só é elaborada no
+    // "else"; com STAGES < 2, o Yosys para a elaboração e o Icarus para a
+    // simulação no tempo 0, os dois com a mensagem abaixo.
+    generate
+        if (STAGES < 2) begin : g_stages_invalidos
+            // $error: o Yosys para a elaboração aqui. O Icarus 12 ignora
+            // $error de elaboração, então o $fatal (só em simulação, fora de
+            // SYNTHESIS) para a simulação no tempo 0. Este ramo só existe
+            // com STAGES inválido: nada aqui vai para a netlist.
+            $error("cdc_sync: o parametro STAGES deve ser >= 2");
+`ifndef SYNTHESIS
+            initial $fatal(1, "cdc_sync: o parametro STAGES deve ser >= 2 (recebido %0d)", STAGES);
+`endif
+        end else begin : g_sync
+            always_ff @(posedge clk or negedge rst_n) begin
+                if (!rst_n)
+                    sync_ff <= '0;
+                else
+                    sync_ff <= {sync_ff[STAGES-2:0], d};
+            end
 
-    assign q = sync_ff[STAGES-1];
+            assign q = sync_ff[STAGES-1];
+        end
+    endgenerate
 
 endmodule
