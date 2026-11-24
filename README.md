@@ -98,7 +98,7 @@ flowchart LR
 |---|---|---|---|
 | `WIDTH` | 16 | RTL | largura da palavra |
 | `DEPTH` | 16 | RTL | palavras por bloco |
-| `SYNC_STAGES` | 2 | RTL | FFs dos sincronizadores de controle e de reset; **mínimo 2** (valores menores param a elaboração com erro em `cdc_sync`/`reset_sync`) |
+| `SYNC_STAGES` | 2 | RTL | FFs dos sincronizadores de controle e de reset; **mínimo 2** (com valores menores, `cdc_sync`/`reset_sync` param a elaboração no Yosys ou a simulação no tempo 0 no Icarus, com mensagem de erro) |
 | `CLK_A_PERIOD` / `CLK_B_PERIOD` | 4,0 / 5,7 ns (Nangate45); 10,0 / 14,3 ns (Sky130HD) | `config.mk` → `handshake.sdc` | mesmos pares nos cenários T2 e T4 do testbench |
 
 ### FSM do Sender (CLK_A)

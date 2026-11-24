@@ -25,7 +25,8 @@ module cdc_sync #(
 
     // Com menos de 2 estágios não há sincronização (e o part-select
     // sync_ff[STAGES-2:0] fica inválido). A lógica só é elaborada no
-    // "else", então STAGES < 2 para a elaboração com esta mensagem.
+    // "else"; com STAGES < 2, o Yosys para a elaboração e o Icarus para a
+    // simulação no tempo 0, os dois com a mensagem abaixo.
     generate
         if (STAGES < 2) begin : g_stages_invalidos
             // $error: o Yosys para a elaboração aqui. O Icarus 12 ignora
