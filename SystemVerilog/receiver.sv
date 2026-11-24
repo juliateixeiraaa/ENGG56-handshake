@@ -16,7 +16,13 @@
 // 2) Depois de RX_DONE, entrega as palavras pela interface valid/ready de
 //    saída (transferência quando out_valid && out_ready na borda de clk).
 //    data_out e out_valid ficam estáveis enquanto out_ready = 0.
-//    out_done sobe depois que a 16ª palavra é aceita.
+//    out_done sobe depois que a 16ª palavra é aceita, e a FSM fica em S_FIM
+//    até o reset.
+//
+//    RX_DONE e OUT_VALID sobem na mesma borda de CLK_B (decisão do grupo,
+//    22/11): a palavra 0 só é oferecida quando o conjunto já está completo,
+//    então nenhuma palavra sai antes de RX_DONE. Um ciclo extra antes de
+//    S_OUTPUT não acrescentaria nada à funcionalidade.
 // =============================================================================
 `timescale 1ns/1ps
 
@@ -51,7 +57,9 @@ module receiver #(
         S_WAIT_REQ     = 2'd0,  // aguardando REQ
         S_WAIT_REQ_LOW = 2'd1,  // ACK ativo, aguardando REQ cair
         S_OUTPUT       = 2'd2,  // conjunto completo; enviando pela saída
-        S_OUT_DONE     = 2'd3   // 16 palavras entregues; espera reset
+        S_FIM          = 2'd3   // 16 palavras entregues; espera reset
+                                // (não se chama OUT_DONE para não confundir
+                                //  com a saída de mesmo nome)
     } state_t;
 
     state_t state, state_nxt;
@@ -94,8 +102,8 @@ module receiver #(
                                 if (rx_cnt == LAST)          state_nxt = S_OUTPUT;
                                 else                         state_nxt = S_WAIT_REQ;
                             end
-            S_OUTPUT:       if (out_fire && (rd_cnt == LAST)) state_nxt = S_OUT_DONE;
-            S_OUT_DONE:                                      state_nxt = S_OUT_DONE;
+            S_OUTPUT:       if (out_fire && (rd_cnt == LAST)) state_nxt = S_FIM;
+            S_FIM:                                           state_nxt = S_FIM;
             default:                                         state_nxt = S_WAIT_REQ;
         endcase
     end
@@ -147,7 +155,7 @@ module receiver #(
                     end
                 end
 
-                default: ;                       // S_OUT_DONE
+                default: ;                       // S_FIM
             endcase
         end
     end
