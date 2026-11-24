@@ -26,7 +26,8 @@ _Copiar/ajustar a tabela de interface do README. Parâmetros: WIDTH = 16, DEPTH 
 
 ### 2.3 Máquinas de estados
 - **Sender:** CAPTURE → LOAD → REQ → WAIT_ACK_LOW → (LOAD | DONE)
-- **Receiver:** WAIT_REQ → WAIT_REQ_LOW → (WAIT_REQ | OUTPUT) → OUT_DONE
+- **Receiver:** WAIT_REQ → WAIT_REQ_LOW → (WAIT_REQ | OUTPUT) → FIM
+  (o estado final se chama FIM para não confundir com a saída OUT_DONE)
 
 _Inserir os diagramas e explicar cada transição._
 
@@ -36,6 +37,13 @@ _Inserir os diagramas e explicar cada transição._
 - **Bundled-data:** `tx_data` registrado em LOAD; `req` sobe 1 ciclo de CLK_A depois; captura no Receiver só após `req` sincronizado. `tx_data` só muda com `req = ack = 0`.
 - **Sinais de CDC saem de flip-flops** (sem lógica combinacional) para evitar glitches.
 - **Armazenamento:** registradores (16 × 16 bits em cada bloco), sem reset nos dados.
+- **RX_DONE × OUT_VALID na mesma borda de CLK_B:** o enunciado pede que as palavras
+  sejam entregues após o recebimento completo. No Receiver, a transição para OUTPUT
+  e a subida de RX_DONE acontecem na mesma borda, e OUT_VALID é uma saída de Moore
+  do estado OUTPUT; logo nenhuma palavra é oferecida antes de RX_DONE = 1. O monitor
+  do testbench confirma isso em todos os cenários. Acrescentar um estado de espera de
+  1 ciclo antes de OUTPUT foi considerado e descartado: atrasaria a saída sem mudar
+  a funcionalidade. Decisão tomada pelo grupo em 22/11.
 - _Outras decisões/alternativas consideradas._
 
 ## 3. Verificação funcional
