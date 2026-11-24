@@ -107,13 +107,25 @@ flowchart LR
 
 ```mermaid
 stateDiagram-v2
-    [*] --> CAPTURE
-    CAPTURE --> CAPTURE: IN_VALID && IN_READY (wr_cnt++)
+    [*] --> CAPTURE: reset_sender_n = 0 (a partir de qualquer estado)
+    CAPTURE --> CAPTURE: menos de 16 palavras (wr_cnt++ se IN_VALID && IN_READY)
     CAPTURE --> LOAD: 16ª palavra capturada
     LOAD --> REQ: tx_data ← mem[tx_cnt]
-    REQ --> WAIT_ACK_LOW: ack_s = 1   (req = 1 neste estado)
-    WAIT_ACK_LOW --> LOAD: ack_s = 0 e tx_cnt < 15 (req = 0, tx_cnt++)
+    REQ --> REQ: ack_s = 0 (espera)
+    REQ --> WAIT_ACK_LOW: ack_s = 1
+    WAIT_ACK_LOW --> WAIT_ACK_LOW: ack_s = 1 (espera)
+    WAIT_ACK_LOW --> LOAD: ack_s = 0 e tx_cnt < 15 (tx_cnt++)
     WAIT_ACK_LOW --> DONE: ack_s = 0 e tx_cnt = 15
+    DONE --> DONE: até o reset
+
+    note right of REQ
+        req é registrado e sobe na 1ª borda de CLK_A
+        depois de entrar em REQ
+    end note
+    note right of WAIT_ACK_LOW
+        req cai na 1ª borda de CLK_A
+        depois de entrar em WAIT_ACK_LOW
+    end note
 ```
 
 ### FSM do Receiver (CLK_B)
