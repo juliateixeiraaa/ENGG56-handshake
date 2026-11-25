@@ -48,7 +48,7 @@ module receiver #(
 );
 
     localparam int CW = (DEPTH > 1) ? $clog2(DEPTH) : 1;
-    localparam logic [CW-1:0] LAST = DEPTH - 1;
+    localparam logic [CW-1:0] LAST = CW'(DEPTH - 1);
 
     // ------------------------------------------------------------------
     // Estados
