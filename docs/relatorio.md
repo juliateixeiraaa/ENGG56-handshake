@@ -37,13 +37,15 @@ _Inserir os diagramas e explicar cada transição._
 - **Bundled-data:** `tx_data` registrado em LOAD; `req` sobe 1 ciclo de CLK_A depois; captura no Receiver só após `req` sincronizado. `tx_data` só muda com `req = ack = 0`.
 - **Sinais de CDC saem de flip-flops** (sem lógica combinacional) para evitar glitches.
 - **Armazenamento:** registradores (16 × 16 bits em cada bloco), sem reset nos dados.
-- **RX_DONE × OUT_VALID na mesma borda de CLK_B:** o enunciado pede que as palavras
-  sejam entregues após o recebimento completo. No Receiver, a transição para OUTPUT
-  e a subida de RX_DONE acontecem na mesma borda, e OUT_VALID é uma saída de Moore
-  do estado OUTPUT; logo nenhuma palavra é oferecida antes de RX_DONE = 1. O monitor
-  do testbench confirma isso em todos os cenários. Acrescentar um estado de espera de
-  1 ciclo antes de OUTPUT foi considerado e descartado: atrasaria a saída sem mudar
-  a funcionalidade. Decisão tomada pelo grupo em 22/11.
+- **RX_DONE × OUT_VALID na mesma borda de CLK_B:** a dúvida do grupo era se a
+  entrega "após RX_DONE" exige pelo menos um ciclo de CLK_B entre RX_DONE e
+  OUT_VALID. No Receiver, a transição para OUTPUT e a subida de RX_DONE acontecem
+  na mesma borda, e OUT_VALID é uma saída de Moore do estado OUTPUT; logo nenhuma
+  palavra é oferecida antes de RX_DONE = 1. O testbench confirma, em todos os
+  cenários, que OUT_VALID nunca sobe antes de RX_DONE e que sobe na mesma borda.
+  Acrescentar um estado de espera de 1 ciclo antes de OUTPUT foi considerado e
+  descartado: atrasaria a saída sem mudar a funcionalidade. Decisão tomada pelo
+  grupo em 22/11. **TODO:** citar aqui o trecho do enunciado sobre RX_DONE.
 - _Outras decisões/alternativas consideradas._
 
 ## 3. Verificação funcional

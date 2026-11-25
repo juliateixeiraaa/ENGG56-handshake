@@ -135,9 +135,9 @@ stateDiagram-v2
     WAIT_REQ --> WAIT_REQ_LOW: req_s = 1 (mem[rx_cnt] ← tx_data, ack ← 1)
     WAIT_REQ_LOW --> WAIT_REQ_LOW: req_s = 1 (espera)
     WAIT_REQ_LOW --> WAIT_REQ: req_s = 0 e rx_cnt < 15 (ack ← 0, rx_cnt++)
-    WAIT_REQ_LOW --> OUTPUT: req_s = 0 e rx_cnt = 15 (ack ← 0, RX_DONE ← 1)
+    WAIT_REQ_LOW --> OUTPUT: req_s = 0 e rx_cnt = 15 (ack ← 0, rx_cnt++ → 0, RX_DONE ← 1)
     OUTPUT --> OUTPUT: 16ª palavra ainda não aceita (rd_cnt++ se OUT_VALID && OUT_READY)
-    OUTPUT --> FIM: 16ª palavra aceita (OUT_DONE ← 1)
+    OUTPUT --> FIM: 16ª palavra aceita (rd_cnt++ → 0, OUT_DONE ← 1)
     FIM --> FIM: até o reset
 
     note right of WAIT_REQ_LOW
