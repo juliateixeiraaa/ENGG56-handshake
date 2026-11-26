@@ -218,7 +218,7 @@ Os períodos de clock de cada plataforma ficam em `config.mk` (`CLK_A_PERIOD`, `
 | T5 | clocks invertidos (CLK_A = 23,3 ns lento, CLK_B = 7,0 ns rápido) |
 | T6 | clocks quase iguais (CLK_A = 10,0 ns, CLK_B = 10,1 ns): a fase relativa escorrega 0,1 ns por ciclo e passa por bordas praticamente coincidentes |
 
-Monitores sempre ativos checam: ordem/conteúdo das palavras, estabilidade de `DATA_OUT`/`OUT_VALID` com `OUT_READY = 0`, `OUT_VALID` só após `RX_DONE`, `RX_DONE` permanente, `OUT_DONE` só após a 16ª palavra, ordem das 4 fases REQ/ACK e estabilidade de `tx_data` durante o handshake.
+Monitores sempre ativos checam: ordem/conteúdo das palavras, estabilidade de `DATA_OUT`/`OUT_VALID` com `OUT_READY = 0`, `OUT_VALID` só após `RX_DONE` e subindo na mesma borda que ele, `RX_DONE` permanente, `OUT_DONE` só após a 16ª palavra, ordem das 4 fases REQ/ACK e estabilidade de `tx_data` durante o handshake.
 
 ## Entregáveis (checklist)
 
