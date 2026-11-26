@@ -130,18 +130,31 @@ stateDiagram-v2
 
 ```mermaid
 stateDiagram-v2
-    [*] --> WAIT_REQ
-    WAIT_REQ --> WAIT_REQ_LOW: req_s = 1 (mem[rx_cnt] ← tx_data, ack = 1)
-    WAIT_REQ_LOW --> WAIT_REQ: req_s = 0 e rx_cnt < 15 (ack = 0, rx_cnt++)
-    WAIT_REQ_LOW --> OUTPUT: req_s = 0 e rx_cnt = 15 (RX_DONE = 1)
-    OUTPUT --> OUTPUT: OUT_VALID && OUT_READY (rd_cnt++)
-    OUTPUT --> OUT_DONE: 16ª palavra aceita (OUT_DONE = 1)
+    [*] --> WAIT_REQ: reset_receiver_n = 0 (a partir de qualquer estado)
+    WAIT_REQ --> WAIT_REQ: req_s = 0 (espera)
+    WAIT_REQ --> WAIT_REQ_LOW: req_s = 1 (mem[rx_cnt] ← tx_data, ack ← 1)
+    WAIT_REQ_LOW --> WAIT_REQ_LOW: req_s = 1 (espera)
+    WAIT_REQ_LOW --> WAIT_REQ: req_s = 0 e rx_cnt < 15 (ack ← 0, rx_cnt++)
+    WAIT_REQ_LOW --> OUTPUT: req_s = 0 e rx_cnt = 15 (ack ← 0, rx_cnt++ → 0, RX_DONE ← 1)
+    OUTPUT --> OUTPUT: 16ª palavra ainda não aceita (rd_cnt++ se OUT_VALID && OUT_READY)
+    OUTPUT --> FIM: 16ª palavra aceita (rd_cnt++ → 0, OUT_DONE ← 1)
+    FIM --> FIM: até o reset
+
+    note right of WAIT_REQ_LOW
+        ack é registrado: sobe na borda de CLK_B em que
+        a FSM entra em WAIT_REQ_LOW e cai na borda em que sai
+    end note
+    note right of OUTPUT
+        OUT_VALID = 1 só neste estado (saída de Moore)
+        RX_DONE e OUT_VALID sobem na mesma borda de CLK_B
+    end note
 ```
 
 ### Decisões de projeto (resumo)
 
 - **Bundled-data:** `tx_data` é carregado em `LOAD` e `req` só sobe no ciclo seguinte. O Receiver só captura depois que `req` passa pelos 2 flip-flops do sincronizador, então o dado está estável há pelo menos 1 ciclo de CLK_A + ~2 ciclos de CLK_B. `tx_data` só muda com `req = ack = 0`.
 - **Sinais de CDC vêm direto de flip-flops** (`req`, `ack`, `tx_data`), sem lógica combinacional, para não gerar glitches.
+- **RX_DONE × OUT_VALID:** sobem na mesma borda de CLK_B (decisão do grupo em 22/11). Nenhuma palavra é oferecida antes de RX_DONE, e o testbench verifica isso; um ciclo extra antes de `OUTPUT` não acrescentaria nada.
 - **Reset:** `RESET_N` ativo baixo, um `reset_sync` por domínio (`reset_sender_n`, `reset_receiver_n`).
 - **Memórias em registradores** (array `mem[0:15]` de 16 bits), sem reset, para economizar área; só são lidas depois de escritas.
 - **SDC:** não usamos `set_clock_groups -asynchronous`. Os caminhos A↔B continuam na análise de setup com `set_max_delay` (orçamento = menor período); só a análise de hold entre domínios e o caminho da porta `RESET_N` são excluídos. Detalhes em `handshake.sdc`.
@@ -205,7 +218,7 @@ Os períodos de clock de cada plataforma ficam em `config.mk` (`CLK_A_PERIOD`, `
 | T5 | clocks invertidos (CLK_A = 23,3 ns lento, CLK_B = 7,0 ns rápido) |
 | T6 | clocks quase iguais (CLK_A = 10,0 ns, CLK_B = 10,1 ns): a fase relativa escorrega 0,1 ns por ciclo e passa por bordas praticamente coincidentes |
 
-Monitores sempre ativos checam: ordem/conteúdo das palavras, estabilidade de `DATA_OUT`/`OUT_VALID` com `OUT_READY = 0`, `OUT_VALID` só após `RX_DONE`, `RX_DONE` permanente, `OUT_DONE` só após a 16ª palavra, ordem das 4 fases REQ/ACK e estabilidade de `tx_data` durante o handshake.
+Monitores sempre ativos checam: ordem/conteúdo das palavras, estabilidade de `DATA_OUT`/`OUT_VALID` com `OUT_READY = 0`, `OUT_VALID` só após `RX_DONE` e subindo na mesma borda que ele, `RX_DONE` permanente, `OUT_DONE` só após a 16ª palavra, ordem das 4 fases REQ/ACK e estabilidade de `tx_data` durante o handshake.
 
 ## Entregáveis (checklist)
 

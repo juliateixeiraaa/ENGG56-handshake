@@ -13,7 +13,8 @@
 // Verificações automáticas (monitores sempre ligados):
 //   - ordem e conteúdo das 16 palavras em DATA_OUT
 //   - DATA_OUT/OUT_VALID estáveis enquanto OUT_VALID=1 e OUT_READY=0
-//   - OUT_VALID nunca ativo antes de RX_DONE; RX_DONE "grudado" até o reset
+//   - OUT_VALID nunca ativo antes de RX_DONE e sobe junto com ele;
+//     RX_DONE "grudado" até o reset
 //   - sequência correta das 4 fases do handshake REQ/ACK
 //   - tx_data estável enquanto REQ ou ACK estiverem ativos
 //   - reset_sender_n / reset_receiver_n sobem só na borda do próprio clock
@@ -140,6 +141,11 @@ module tb_handshake_top;
             // OUT_VALID só depois de RX_DONE
             if (OUT_VALID && !RX_DONE)
                 fail("OUT_VALID ativo antes de RX_DONE");
+
+            // OUT_VALID sobe na mesma borda de CLK_B que RX_DONE
+            // (decisão do grupo em 22/11, ver README e relatório 2.4)
+            if (RX_DONE && !prev_rxdone && !OUT_VALID)
+                fail("OUT_VALID não subiu junto com RX_DONE");
 
             // RX_DONE permanece ativo até o reset
             if (prev_rxdone && !RX_DONE)
