@@ -19,7 +19,12 @@ SND_RTL := SystemVerilog/cdc_sync.sv SystemVerilog/sender.sv
 SND_TB  := SystemVerilog/tb_sender.sv
 SND_VVP := $(SIM_DIR)/tb_sender.vvp
 
-.PHONY: help compile sim wave run sim_sender clean
+# Testbench unitário do Receiver
+RCV_RTL := SystemVerilog/cdc_sync.sv SystemVerilog/receiver.sv
+RCV_TB  := SystemVerilog/tb_receiver.sv
+RCV_VVP := $(SIM_DIR)/tb_receiver.vvp
+
+.PHONY: help compile sim wave run sim_sender sim_receiver clean
 
 help:
 	@echo "Uso: make -f Makefile.simulation <alvo>"
@@ -28,6 +33,7 @@ help:
 	@echo "  wave     abre o GTKWave com os sinais principais já organizados"
 	@echo "  run      sim + wave"
 	@echo "  sim_sender  testbench unitário do Sender (log em $(SIM_DIR)/sim_sender.log)"
+	@echo "  sim_receiver  testbench unitário do Receiver (log em $(SIM_DIR)/sim_receiver.log)"
 	@echo "  clean    apaga os arquivos gerados em $(SIM_DIR)/"
 
 compile: $(VVP)
@@ -53,6 +59,13 @@ $(SND_VVP): $(SND_RTL) $(SND_TB) | $(SIM_DIR)
 sim_sender: $(SND_VVP)
 	cd $(SIM_DIR) && vvp -n tb_sender.vvp | tee sim_sender.log
 	@grep -q "TODOS OS TESTES PASSARAM" $(SIM_DIR)/sim_sender.log
+
+$(RCV_VVP): $(RCV_RTL) $(RCV_TB) | $(SIM_DIR)
+	iverilog -g2012 -Wall -s tb_receiver -o $@ $(RCV_RTL) $(RCV_TB)
+
+sim_receiver: $(RCV_VVP)
+	cd $(SIM_DIR) && vvp -n tb_receiver.vvp | tee sim_receiver.log
+	@grep -q "TODOS OS TESTES PASSARAM" $(SIM_DIR)/sim_receiver.log
 
 clean:
 	rm -f $(SIM_DIR)/*.vvp $(SIM_DIR)/*.vcd $(SIM_DIR)/*.log
