@@ -22,8 +22,9 @@ A organização segue o projeto `ENGG56/Exemplo/` da máquina virtual:
 │   ├── sender.sv             bloco Sender (CLK_A)
 │   ├── receiver.sv           bloco Receiver (CLK_B)
 │   ├── handshake_top.sv      módulo de topo
-│   └── tb_handshake_top.sv   testbench (6 cenários + verificações automáticas)
-├── Simulacao/                saídas da simulação (.vcd, sim.log)
+│   ├── tb_handshake_top.sv   testbench do topo (6 cenários + verificações automáticas)
+│   └── tb_sender.sv          testbench unitário do Sender (6 cenários)
+├── Simulacao/                saídas da simulação (.vcd, sim.log, sim_sender.log)
 ├── SinteseLogica/            saídas do Yosys
 ├── SinteseFisica/            saídas do OpenROAD (results/, reports/, logs/)
 ├── scripts/
@@ -219,6 +220,25 @@ Os períodos de clock de cada plataforma ficam em `config.mk` (`CLK_A_PERIOD`, `
 | T6 | clocks quase iguais (CLK_A = 10,0 ns, CLK_B = 10,1 ns): a fase relativa escorrega 0,1 ns por ciclo e passa por bordas praticamente coincidentes |
 
 Monitores sempre ativos checam: ordem/conteúdo das palavras, estabilidade de `DATA_OUT`/`OUT_VALID` com `OUT_READY = 0`, `OUT_VALID` só após `RX_DONE` e subindo na mesma borda que ele, `RX_DONE` permanente, `OUT_DONE` só após a 16ª palavra, ordem das 4 fases REQ/ACK e estabilidade de `tx_data` durante o handshake.
+
+### Testbench unitário do Sender
+
+`make -f Makefile.simulation sim_sender` simula só o `sender.sv` (log em `Simulacao/sim_sender.log`). O lado do Receiver é um modelo comportamental em CLK_B: sincroniza `req` com 2 flip-flops e sobe/desce `ack` depois de um número aleatório de ciclos.
+
+Opções: `SEED=N` muda a semente das esperas e palavras aleatórias (padrão 1) e `SYNC_STAGES=K` muda os FFs do sincronizador do ACK (padrão 2). Exemplo: `make -f Makefile.simulation sim_sender SEED=42 SYNC_STAGES=3`.
+
+| Cenário | O que testa |
+|---------|-------------|
+| S1 | valores durante o reset (`in_ready`, `req`, `tx_data`, estado `S_CAPTURE`) e `in_ready = 1` após a liberação |
+| S2 | fluxo sem esperas (CLK_A = 4,0 ns, CLK_B = 5,7 ns); `in_valid` mantido depois da 16ª palavra é ignorado e o Sender fica em `S_DONE` |
+| S3 | reset com `req` e `ack` ativos no 6º handshake, fora das bordas de clock; depois, transferência completa desde o início |
+| S3b | reset no meio da captura (7 palavras), com `in_valid = 1` durante o reset; nada é capturado em reset e a transferência recomeça do início |
+| S4 | esperas aleatórias em `in_valid` e no `ack` (até 8 ciclos); CLK_A = 23,3 ns lento, CLK_B = 7,0 ns rápido |
+| S5 | clocks quase iguais (10,0 / 10,1 ns) com `ack` lento (até 12 ciclos) |
+
+Monitores checam: `in_ready = 0` em reset e depois da 16ª palavra, sem captura extra; `req` só sobe depois das 16 capturas; ordem das 4 fases REQ/ACK; `req` só cai (`SYNC_STAGES` + 1) ciclos de CLK_A ou mais depois de `ack` subir (sincronizador do ACK presente e com o número certo de FFs); `tx_data` estável com `req` ou `ack` ativos e carregado pelo menos 1 ciclo de CLK_A antes de `req` subir; as 16 palavras chegam ao modelo na ordem; depois do 16º handshake, `req = 0` e estado `S_DONE`. Se o Sender travar, o erro diz onde parou (palavras capturadas, recebidas, handshakes e estado).
+
+A simulação RTL não modela metaestabilidade: o TB confere que o sincronizador existe e tem o atraso esperado, mas a robustez do CDC fica com a análise de CDC/STA.
 
 ## Entregáveis (checklist)
 

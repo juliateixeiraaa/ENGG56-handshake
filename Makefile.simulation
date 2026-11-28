@@ -14,7 +14,14 @@ VVP     := $(SIM_DIR)/$(TB_TOP).vvp
 VCD     := $(SIM_DIR)/$(TB_TOP).vcd
 GTKW    := scripts/ondas.gtkw
 
-.PHONY: help compile sim wave run clean
+# Testbench unitário do Sender
+SND_RTL := SystemVerilog/cdc_sync.sv SystemVerilog/sender.sv
+SND_TB  := SystemVerilog/tb_sender.sv
+SND_VVP := $(SIM_DIR)/tb_sender.vvp
+SEED        ?= 1     # semente do tb_sender (+seed=N)
+SYNC_STAGES ?= 2     # FFs do sincronizador do ACK no tb_sender
+
+.PHONY: help compile sim wave run sim_sender clean
 
 help:
 	@echo "Uso: make -f Makefile.simulation <alvo>"
@@ -22,6 +29,8 @@ help:
 	@echo "  sim      executa a simulação (log em $(SIM_DIR)/sim.log, ondas em $(VCD))"
 	@echo "  wave     abre o GTKWave com os sinais principais já organizados"
 	@echo "  run      sim + wave"
+	@echo "  sim_sender  testbench unitário do Sender (log em $(SIM_DIR)/sim_sender.log)"
+	@echo "              opções: SEED=N (padrão 1), SYNC_STAGES=K (padrão 2)"
 	@echo "  clean    apaga os arquivos gerados em $(SIM_DIR)/"
 
 compile: $(VVP)
@@ -40,6 +49,13 @@ wave:
 	gtkwave $(VCD) $(GTKW) &
 
 run: sim wave
+
+# Recompila sempre: SYNC_STAGES entra na elaboração (-P)
+sim_sender: $(SND_RTL) $(SND_TB) | $(SIM_DIR)
+	iverilog -g2012 -Wall -s tb_sender -P tb_sender.SYNC_STAGES=$(strip $(SYNC_STAGES)) \
+	         -o $(SND_VVP) $(SND_RTL) $(SND_TB)
+	cd $(SIM_DIR) && vvp -n tb_sender.vvp +seed=$(strip $(SEED)) | tee sim_sender.log
+	@grep -q "TODOS OS TESTES PASSARAM" $(SIM_DIR)/sim_sender.log
 
 clean:
 	rm -f $(SIM_DIR)/*.vvp $(SIM_DIR)/*.vcd $(SIM_DIR)/*.log
