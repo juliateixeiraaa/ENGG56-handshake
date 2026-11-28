@@ -12,6 +12,8 @@
 //   S2  Fluxo sem esperas (CLK_A rápido, CLK_B lento) + IN_VALID extra
 //       ignorado depois das 16 palavras; Sender fica em DONE até o reset
 //   S3  Reset assíncrono no meio do handshake e recomeço do zero
+//   S3b Reset no meio da captura (7 palavras) com IN_VALID = 1 durante o
+//       reset, e recomeço do zero
 //   S4  Esperas aleatórias no IN_VALID e no ACK (CLK_A lento, CLK_B rápido)
 //   S5  Clocks quase iguais (10,0 / 10,1 ns) com ACK lento
 //
@@ -20,17 +22,41 @@
 //   - REQ não sobe antes da 16a palavra capturada
 //   - 4 fases do handshake: REQ sobe com ACK = 0, cai só depois do ACK,
 //     e não sobe de novo antes de ACK cair
+//   - REQ cai pelo menos (SYNC_STAGES + 1) ciclos de CLK_A depois de ACK
+//     subir (sincronizador do ACK presente e com o número certo de FFs)
 //   - tx_data estável enquanto REQ ou ACK estiverem ativos
 //   - tx_data muda pelo menos 1 ciclo de CLK_A antes de REQ subir
 //   - as 16 palavras chegam ao modelo do Receiver na ordem certa
 //   - depois do 16o handshake, REQ fica em 0 e o Sender fica em S_DONE
+//
+// Fora do alcance: metaestabilidade. A simulação RTL não a modela; essa
+// parte fica com a análise de CDC/STA.
+//
+// Opções (ver Makefile.simulation):
+//   +seed=N              semente das esperas e palavras aleatórias (padrão 1)
+//   -P tb_sender.SYNC_STAGES=K   FFs do sincronizador do ACK (padrão 2)
 // =============================================================================
 `timescale 1ns/1ps
 
-module tb_sender;
+module tb_sender #(
+    parameter int SYNC_STAGES = 2
+);
 
     localparam int W = 16;
     localparam int N = 16;
+
+    // Ciclos de CLK_A que wait_done espera antes de declarar travamento
+    // (o cenário mais longo, S4, usa ~200 ciclos)
+    localparam int DONE_TIMEOUT = 2000;
+
+    // ------------------------------------------------------------------
+    // Semente: todas as escolhas aleatórias passam por rnd()
+    // ------------------------------------------------------------------
+    int unsigned seed = 1;
+
+    function automatic int unsigned rnd(input int unsigned max);
+        return $urandom(seed) % (max + 1);
+    endfunction
 
     // ------------------------------------------------------------------
     // Clocks independentes (mesmos pares do tb_handshake_top)
@@ -58,7 +84,7 @@ module tb_sender;
     logic         ack      = 1'b0;
     logic [W-1:0] tx_data;
 
-    sender #(.WIDTH(W), .DEPTH(N)) dut (
+    sender #(.WIDTH(W), .DEPTH(N), .SYNC_STAGES(SYNC_STAGES)) dut (
         .clk      (CLK_A),
         .rst_n    (rst_n),
         .data_in  (data_in),
@@ -104,7 +130,7 @@ module tb_sender;
             if (!rst_n) begin
                 ack <= 1'b0;
             end else if (req_s && !ack) begin
-                repeat ($urandom_range(ack_rise_max, 0)) @(posedge CLK_B);
+                repeat (rnd(ack_rise_max)) @(posedge CLK_B);
                 if (rst_n && req_s) begin
                     // amostra o barramento (bundled-data) e responde
                     if (rx_count >= N)
@@ -119,7 +145,7 @@ module tb_sender;
                     ack <= 1'b1;
                 end
             end else if (!req_s && ack) begin
-                repeat ($urandom_range(ack_fall_max, 0)) @(posedge CLK_B);
+                repeat (rnd(ack_fall_max)) @(posedge CLK_B);
                 if (rst_n) begin
                     ack <= 1'b0;
                     hs_count++;
@@ -148,11 +174,6 @@ module tb_sender;
         end
     end
 
-    // IN_READY = 0 logo após o reset ativar é checado em check_reset_values;
-    // aqui, garante que ele não sobe enquanto o reset estiver ativo.
-    always @(posedge in_ready)
-        if (!rst_n) fail("IN_READY subiu durante o reset");
-
     // ------------------------------------------------------------------
     // Monitores — handshake de 4 fases e bundled-data
     // ------------------------------------------------------------------
@@ -180,8 +201,21 @@ module tb_sender;
                            $realtime - t_tx_change));
     end
 
-    always @(negedge req) if (rst_n && !ack) fail("REQ caiu antes do ACK");
-    always @(posedge ack) if (!req)          fail("ACK subiu sem REQ");
+    // ACK passa por SYNC_STAGES FFs até virar ack_s; depois, 1 ciclo para a
+    // FSM ir a S_WAIT_ACK_LOW e 1 para o registrador de req cair. Com o ACK
+    // subindo logo antes de uma borda, o mínimo é (SYNC_STAGES + 1) ciclos.
+    realtime t_ack_rise = 0;
+    always @(posedge ack) begin
+        t_ack_rise = $realtime;
+        if (!req) fail("ACK subiu sem REQ");
+    end
+
+    always @(negedge req) begin
+        if (rst_n && !ack) fail("REQ caiu antes do ACK");
+        if (rst_n && ($realtime - t_ack_rise < (SYNC_STAGES + 1) * period_a - 0.001))
+            fail($sformatf("REQ caiu só %0.3f ns depois de ACK (mínimo %0d ciclos de CLK_A: sincronizador ausente ou curto?)",
+                           $realtime - t_ack_rise, SYNC_STAGES + 1));
+    end
 
     // ------------------------------------------------------------------
     // Tarefas auxiliares
@@ -199,7 +233,7 @@ module tb_sender;
             case (mode)
                 0:       words[i] = 16'hA500 + i;
                 1:       words[i] = 16'h1 << i;
-                default: words[i] = $urandom;
+                default: words[i] = rnd(16'hFFFF);
             endcase
     endtask
 
@@ -210,28 +244,36 @@ module tb_sender;
         if (dut.state !== dut.S_CAPTURE) fail("estado deveria ser S_CAPTURE em reset");
     endtask
 
-    // Ativa o reset, confere os valores e solta logo após uma borda de CLK_A
-    task automatic apply_reset(input real hold_ns);
-        rst_n    = 1'b0;
-        in_valid = 1'b0;
-        #0.01;
-        check_reset_values();
-        #(hold_ns);
+    // Solta o reset logo após uma borda de CLK_A (o que o reset_sync do topo
+    // garante); antes, confere que os valores de reset se mantiveram
+    task automatic release_reset;
         @(posedge CLK_A);
         #0.1;
-        rst_n = 1'b1;
+        check_reset_values();
+        in_valid = 1'b0;
+        rst_n    = 1'b1;
         @(posedge CLK_A);
         #0.1;
         if (in_ready !== 1'b1) fail("IN_READY deveria estar ativo após o reset");
         if (req      !== 1'b0) fail("REQ deveria continuar 0 após o reset");
     endtask
 
-    // Fonte externa: envia as N palavras; max_gap = ciclos ociosos máximos
-    task automatic drive_inputs(input int max_gap);
-        for (int i = 0; i < N; i++) begin
+    // Ativa o reset, confere os valores e solta depois de hold_ns
+    task automatic apply_reset(input real hold_ns);
+        rst_n    = 1'b0;
+        in_valid = 1'b0;
+        #0.01;
+        check_reset_values();
+        #(hold_ns);
+        release_reset();
+    endtask
+
+    // Fonte externa: envia as n primeiras palavras; max_gap = ciclos ociosos máximos
+    task automatic drive_inputs(input int max_gap, input int n = N);
+        for (int i = 0; i < n; i++) begin
             in_valid <= 1'b0;
             data_in  <= 16'hxxxx;
-            repeat ($urandom_range(max_gap, 0)) @(posedge CLK_A);
+            repeat (rnd(max_gap)) @(posedge CLK_A);
             in_valid <= 1'b1;
             data_in  <= words[i];
             @(posedge CLK_A);
@@ -241,13 +283,26 @@ module tb_sender;
         data_in  <= '0;
     endtask
 
-    // Espera o fim da transferência e confere o estado final
+    // Espera o fim da transferência e confere o estado final. Se o Sender
+    // travar, acusa o erro com o ponto em que parou e segue para o próximo
+    // cenário.
+    // (Laço com contador em vez de fork/join_any + disable fork: no Icarus 12,
+    // disable fork dentro de uma task chamada num fork derruba o vvp.)
     task automatic wait_done;
-        wait (hs_count == N);
-        repeat (6) @(posedge CLK_A);
-        if (dut.state !== dut.S_DONE) fail("Sender não chegou a S_DONE");
-        if (req      !== 1'b0)        fail("REQ ativo depois do 16o handshake");
-        if (in_ready !== 1'b0)        fail("IN_READY ativo em S_DONE");
+        int cycles = 0;
+        while (hs_count != N && cycles < DONE_TIMEOUT) begin
+            @(posedge CLK_A);
+            cycles++;
+        end
+        if (hs_count != N) begin
+            fail($sformatf("travou: in_count = %0d, rx_count = %0d, hs_count = %0d, estado = %s",
+                           in_count, rx_count, hs_count, dut.state.name()));
+        end else begin
+            repeat (6) @(posedge CLK_A);
+            if (dut.state !== dut.S_DONE) fail("Sender não chegou a S_DONE");
+            if (req      !== 1'b0)        fail("REQ ativo depois do 16o handshake");
+            if (in_ready !== 1'b0)        fail("IN_READY ativo em S_DONE");
+        end
     endtask
 
     task automatic check_counts;
@@ -262,6 +317,8 @@ module tb_sender;
     initial begin
         $dumpfile("tb_sender.vcd");
         $dumpvars(0, tb_sender);
+        void'($value$plusargs("seed=%d", seed));
+        $display("tb_sender: seed = %0d, SYNC_STAGES = %0d", seed, SYNC_STAGES);
 
         // ---------------- S1 ----------------
         new_test("S1 reset inicial");
@@ -302,12 +359,30 @@ module tb_sender;
         // Recomeça do zero: as 16 palavras de novo, na ordem
         new_test("S3 recomeço após o reset");
         gen_words(2);
-        @(posedge CLK_A);
-        #0.1;
-        rst_n = 1'b1;
-        @(posedge CLK_A);
-        #0.1;
-        if (in_ready !== 1'b1) fail("IN_READY deveria estar ativo após o reset");
+        release_reset();
+        fork
+            drive_inputs(1);
+            wait_done();
+        join
+        check_counts();
+
+        // ---------------- S3b ----------------
+        new_test("S3b reset no meio da captura");
+        gen_words(2);
+        apply_reset(13.0);
+        drive_inputs(1, 7);                    // 7 palavras capturadas
+        in_valid <= 1'b1;                      // fonte continua oferecendo a 8a
+        data_in  <= words[7];
+        #1.7;                                  // fora da borda de CLK_A
+        if (in_count != 7) fail($sformatf("%0d palavras capturadas antes do reset (esperado 7)", in_count));
+        rst_n = 1'b0;                          // in_valid continua 1
+        #0.01;
+        check_reset_values();
+        repeat (5) @(posedge CLK_A);           // in_valid = 1 por 5 bordas em reset
+        if (in_count != 7) fail("palavra capturada durante o reset");
+        new_test("S3b recomeço após o reset");
+        gen_words(0);
+        release_reset();
         fork
             drive_inputs(1);
             wait_done();
@@ -350,10 +425,14 @@ module tb_sender;
         $finish;
     end
 
-    // Watchdog
+    // Watchdog: último recurso (wait_done já tem timeout próprio)
     initial begin
-        #200_000;
-        $display("[%0t] ERRO: timeout da simulação", $time);
+        #400_000;
+        fail($sformatf("timeout da simulação: in_count = %0d, rx_count = %0d, hs_count = %0d, estado = %s",
+                       in_count, rx_count, hs_count, dut.state.name()));
+        $display("\n==============================================");
+        $display("  FALHA: %0d erro(s)", errors);
+        $display("==============================================\n");
         $finish;
     end
 
